@@ -1,15 +1,25 @@
-import pybullet_envs
-import gym
+from environment import PyTuxActionCritic
 import numpy as np
 from sac_tf2 import Agent
 from utils import plot_learning_curve
-from gym import wrappers
+import pystk
+import tensorflow as tf
+devs = tf.config.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(devs[0], True)
+#from gym import wrappers
+
+def toAction(a):
+    action = a.numpy()
+    action = pystk.Action(*action.tolist())
+    return action
 
 if __name__ == '__main__':
-    env = gym.make('InvertedPendulumBulletEnv-v0')
-    agent = Agent(input_dims=env.observation_space.shape, env=env,
-            n_actions=env.action_space.shape[0])
-    n_games = 250
+    env = PyTuxActionCritic(screen_width=64, screen_height=48, verbose=True)
+    agent = Agent(input_dims=[64*48+8], env=env, batch_size=1024,
+            n_actions=5, max_size=1000000, lamda=1.75)
+    # agent = AgentConv(input_dims=[96,128,3], env=env,
+    #         n_actions=7, max_size=10000)
+    n_games = 10000
     # uncomment this line and do a mkdir tmp && mkdir tmp/video if you want to
     # record video of the agent playing the game.
     #env = wrappers.Monitor(env, 'tmp/video', video_callable=lambda episode_id: True, force=True)
@@ -17,26 +27,32 @@ if __name__ == '__main__':
 
     figure_file = 'plots/' + filename
 
-    best_score = env.reward_range[0]
+    best_score = 0
     score_history = []
-    load_checkpoint = True
+    load_checkpoint = False
 
     if load_checkpoint:
         agent.load_models()
-        env.render(mode='human')
+        # env.render(mode='human')
 
+    # tracks = ['hacienda', 'cocoa_temple', "zengarden"]
     for i in range(n_games):
-        observation = env.reset()
+        # track = tracks[np.random.choice(3)]
+        track = "hacienda"
+        observation = env.reset(track)
         done = False
         score = 0
         while not done:
             action = agent.choose_action(observation)
-            observation_, reward, done, info = env.step(action)
+            pytux_action = toAction(action)
+            observation_, reward, done, info = env.step(pytux_action)
+            print("current distance: {:.2f} max distance: {:.2f} steps: {}".format(info, env.max_distance, env.t), end="\r")
             score += reward
             agent.remember(observation, action, reward, observation_, done)
             if not load_checkpoint:
                 agent.learn()
             observation = observation_
+
         score_history.append(score)
         avg_score = np.mean(score_history[-100:])
 
@@ -45,7 +61,7 @@ if __name__ == '__main__':
             if not load_checkpoint:
                 agent.save_models()
 
-        print('episode ', i, 'score %.1f' % score, 'avg_score %.1f' % avg_score)
+        print('\nepisode ', i, 'score %.1f' % score, 'avg_score %.1f' % avg_score)
 
     if not load_checkpoint:
         x = [i+1 for i in range(n_games)]
