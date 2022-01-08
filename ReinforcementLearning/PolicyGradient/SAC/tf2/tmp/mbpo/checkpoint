@@ -1,2 +1,0 @@
-model_checkpoint_path: "ensemble_mbpo"
-all_model_checkpoint_paths: "ensemble_mbpo"
