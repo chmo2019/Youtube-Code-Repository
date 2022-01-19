@@ -15,8 +15,8 @@ def toAction(a):
 
 if __name__ == '__main__':
     env = PyTuxActionCritic(screen_width=64, screen_height=48, verbose=True)
-    agent = Agent(input_dims=[64*48+8], env=env, batch_size=1024,
-            n_actions=5, max_size=1000000, lamda=1.75)
+    agent = Agent(input_dims=[64*48+8], env=env, batch_size=256,
+            n_actions=5, max_size=1000000, lamda=2)
     # agent = AgentConv(input_dims=[96,128,3], env=env,
     #         n_actions=7, max_size=10000)
     n_games = 10000

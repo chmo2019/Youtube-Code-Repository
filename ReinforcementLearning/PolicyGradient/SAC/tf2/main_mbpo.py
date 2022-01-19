@@ -15,11 +15,11 @@ def toAction(a):
     return action
 
 if __name__ == '__main__':
-    env = PyTuxActionCritic(screen_width=64, screen_height=48, verbose=True)
-    agent = MBPO_Agent(input_dims=[64*48+8], env=env,
-            n_actions=5, max_size=1000000, lamda=1.25)
+    env = PyTuxActionCritic(screen_width=64, screen_height=48, verbose=False)
+    agent = MBPO_Agent(input_dims=[64*48+8], env=env, reward_scale=3,
+            n_actions=5, max_size=1000000, batch_size=512)
    
-    n_games = 10000 # number of episodes
+    n_games = 100 # number of episodes
     n_rollouts = 100 # number of rollouts per step
     n_updates = 20 # number of gradient updates
     k = 15 # number of rollout steps
@@ -48,51 +48,62 @@ if __name__ == '__main__':
 
         # train model
         log_probs = agent.train_model()
-        for i in range(50):
-            temp = agent.train_model()
-            if (temp is None):
-                break
-            if (abs(temp - log_probs) <= 0.1):
-                break
+        if (i >= 1):
+            for _ in range(50):
+                temp = agent.train_model()
+                if (temp is None):
+                    break
+                if (abs(temp - log_probs) <= 0.1):
+                    break
             log_probs = temp
 
         # start episode
-        for i in tqdm(range(1000)):
+        for _ in tqdm(range(1000)):
             action = agent.choose_action(observation)
             pytux_action = toAction(action)
 
             # take action
-            _, _, done, info = env.step(pytux_action)
-            # predict next state and reward
-            observation_, reward = agent.predict_next(observation, action)
-
-            loc = observation_.numpy()[64*48:64*48+3].tolist()
+            observation_, reward, done, info = env.step(pytux_action)
 
             # print("current distance: {:.2f} max distance: {:.2f} steps: {}".format(info, env.max_distance, env.t), end="\r")
             score += reward
             agent.record_env(observation, action, reward, observation_, done)
 
-            # perform rollouts from sampled state(s)
-            env.verbose = False
-            for i in range(n_rollouts):
-                obs, action, reward, obs_, done = agent.sample_env(1)
-                env.set_location(obs[0,64*48:64*48+3].tolist())
-                pytux_action = action[0]
-                pytux_action = np.array(pytux_action).tolist()
-                pytux_action = pystk.Action(*pytux_action)
-                for i in range(k):
-                    obs_, reward, done, info = env.step(pytux_action)
-                    agent.record_model(obs, action, reward, obs_, done)
+            # perform rollouts with dynamics model
+            if (i >= 1):
+                # for _ in range(n_rollouts):
+                #     obs, action, reward, obs_, done = agent.sample_env(1)
+                obs, action_, rew, obs_, _done = agent.sample_env(n_rollouts)
+                obs = tf.convert_to_tensor(np.squeeze(obs))
+                action_ = tf.convert_to_tensor(np.squeeze(action_))
+                for _ in range(k):
+                    _, obs_, reward = agent.ensemble.sample_normal(obs, action_)
+                    rew = tf.squeeze(rew)
+                    agent.env_memory.store_batch(obs, action_, rew, obs_, _done, n_rollouts)
                     obs = obs_
-                    action = agent.choose_action(obs)
-                    pytux_action = toAction(action)
+                    obs = tf.convert_to_tensor(np.squeeze(obs))
+                    action_ , _ = agent.actor.sample_normal(obs)
+                    action_ = tf.convert_to_tensor(np.squeeze(action_))
 
-            env.set_location(loc)
-            env.verbose = True
+                    # obs = np.squeeze(obs)
+                    # action = np.squeeze(action)
+
+                    # obs = obs[0]
+                    # action = action[0]
+                    # for _ in range(k):
+                    #     if (done):
+                    #         break
+                    #     obs_, reward = agent.predict_next(obs, action)
+                    #     agent.record_model(obs, action, reward, obs_, done)
+                    #     obs = obs_
+                    #     action = agent.choose_action(obs)
+
+            # stop if terminal state detected
             if (done):
                 break
+
             # perform gradient updates
-            for i in range(n_updates): 
+            for _ in range(n_updates): 
                 if not load_checkpoint:
                     agent.learn()
                 
@@ -112,3 +123,4 @@ if __name__ == '__main__':
         x = [i+1 for i in range(n_games)]
         plot_learning_curve(x, score_history, figure_file)
 
+  

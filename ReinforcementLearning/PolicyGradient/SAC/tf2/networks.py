@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow_probability as tfp
 from tensorflow.keras.layers import Dense, Conv2D, Flatten, Concatenate
+from math import pi
 # from tf_agents import reparameterized_sampling 
 
 class CriticNetwork(keras.Model):
@@ -92,28 +93,37 @@ class ActorNetwork(keras.Model):
 
         return mu, sigma, disc_mu, disc_sigma
 
+    def get_probs_and_samples(self, mu, sigma):
+        samples = tf.random.normal(shape=mu.shape, mean=mu, stddev=sigma)
+        probs = tf.math.log(1 / (sigma * tf.sqrt(2 * pi)) * tf.exp(-0.5 * tf.square((samples - mu) / sigma)))
+
+        return samples, probs
+
     def sample_normal(self, state, reparameterize=True):
         # mu, sigma = self.call(state)
         mu, sigma, disc_mu, disc_sigma = self.call(state)
         probabilities = tfp.distributions.Normal(mu, sigma)
         disc_probs = tfp.distributions.Normal(disc_mu, disc_sigma)
 
-        if reparameterize:
-            actions = probabilities.sample() # + something else if you want to implement
-            disc_actions = disc_probs.sample()
-        else:
-            actions = probabilities.sample()
-            disc_actions = disc_probs.sample()
+        actions, log_probs = self.get_probs_and_samples(mu, sigma)
+        disc_actions, disc_log_probs = self.get_probs_and_samples(disc_mu, disc_sigma)
+
+        # if reparameterize:
+        #     actions = probabilities.sample() # + something else if you want to implement
+        #     disc_actions = disc_probs.sample()
+        # else:
+        #     actions = probabilities.sample()
+        #     disc_actions = disc_probs.sample()
 
         action = tf.math.tanh(actions)*self.max_action
-        log_probs = probabilities.log_prob(actions)
+        # log_probs = probabilities.log_prob(actions)
         log_probs -= tf.math.log(1-tf.math.pow(action,2)+self.noise)
         log_probs = tf.math.reduce_sum(log_probs, axis=1, keepdims=True)
 
         disc_action = tf.math.tanh(disc_actions)*self.max_action
         disc_action = tf.math.greater(disc_action, tf.cast(tf.zeros_like(disc_action), action.dtype))
         disc_action = tf.cast(disc_action, action.dtype)
-        disc_log_probs = disc_probs.log_prob(disc_actions)
+        # disc_log_probs = disc_probs.log_prob(disc_actions)
         disc_log_probs -= tf.math.log(1-tf.math.pow(disc_action,2)+self.noise)
         disc_log_probs = tf.math.reduce_sum(disc_log_probs, axis=1, keepdims=True)
 

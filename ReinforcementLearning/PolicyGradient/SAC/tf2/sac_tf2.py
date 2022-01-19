@@ -207,7 +207,6 @@ class MBPO_Agent:
     def sample_env(self, batch_size):
         return self.env_memory.sample_buffer(batch_size)
 
-    @tf.function
     def update_network_parameters(self, tau=None):
         if tau is None:
             tau = self.tau
@@ -278,7 +277,7 @@ class MBPO_Agent:
         rewards = tf.convert_to_tensor(reward, dtype=tf.float32)
         actions = tf.convert_to_tensor(action, dtype=tf.float32)
 
-        _, states_, rewards = self.ensemble.sample_normal(states, actions)
+        # _, states_, rewards = self.ensemble.sample_normal(states, actions)
 
         with tf.GradientTape() as tape:
             value = tf.squeeze(self.value(states), 1)

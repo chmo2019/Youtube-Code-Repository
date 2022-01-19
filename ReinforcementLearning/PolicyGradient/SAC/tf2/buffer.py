@@ -21,6 +21,38 @@ class ReplayBuffer:
 
         self.mem_cntr += 1
 
+    def store_batch(self, state, action, reward, state_, done, size):
+        index = self.mem_cntr % self.mem_size
+        end = index + size
+
+        if (end > self.mem_size):
+            wrap = end
+            end = self.mem_size
+            diff = end - index
+            self.state_memory[index:end] = state[:diff]
+            self.new_state_memory[index:end] = state_[:diff]
+            self.action_memory[index:end] = action[:diff]
+            self.reward_memory[index:end] = reward[:diff]
+            self.terminal_memory[index:end] = done[:diff]
+
+            index = 0
+            end = wrap - self.mem_size
+
+            self.state_memory[index:end] = state[diff:]
+            self.new_state_memory[index:end] = state_[diff:]
+            self.action_memory[index:end] = action[diff:]
+            self.reward_memory[index:end] = reward[diff:]
+            self.terminal_memory[index:end] = done[diff:]
+
+        else:
+            self.state_memory[index:end] = state
+            self.new_state_memory[index:end] = state_
+            self.action_memory[index:end] = action
+            self.reward_memory[index:end] = reward
+            self.terminal_memory[index:end] = done
+
+        self.mem_cntr = end
+
     def sample_buffer(self, batch_size):
         max_mem = min(self.mem_cntr, self.mem_size)
 

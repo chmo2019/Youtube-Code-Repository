@@ -181,7 +181,7 @@ class PyTuxActionCritic:
     if current_vel < 1.0 and self.t - self.last_rescue > PyTuxActionCritic.RESCUE_TIMEOUT:
         self.last_rescue = self.t
         action.rescue = True
-        reward -= 10
+        reward -= 3
         collided = True
         # return np.array(im), reward, False, current_distance
 
@@ -204,16 +204,16 @@ class PyTuxActionCritic:
     # else:
     #   reward += 0.0001
 
-    # if (current_distance <= self.max_distance or current_distance - self.max_distance > 300):
-    #   self.termination_steps += 1
-    #   # reward = -1
-    # else:
-    #   self.termination_steps = 0
+    if (current_distance <= self.max_distance or current_distance - self.max_distance > 300):
+      self.termination_steps += 1
+      # reward = -1
+    else:
+      self.termination_steps = 0
 
     # # 0.4 track
 
-    # if (self.termination_steps == 1000):
-    #   return np.array(state, dtype=np.float32), reward, True, current_distance
+    if (self.termination_steps == 1000):
+      return np.array(state, dtype=np.float32), reward, True, current_distance
 
     if (current_distance > self.distance and current_distance - self.distance < 300 and not collided):
       reward += current_distance - self.distance
